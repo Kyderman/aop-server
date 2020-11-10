@@ -2,7 +2,6 @@ import { ApolloServer, PubSub } from "apollo-server";
 import mongoose from "mongoose";
 import { GraphQLSchema } from "graphql";
 import { mergeSchemas } from "graphql-tools";
-const { OAuth2Client } = require("google-auth-library");
 
 import dotenv from "dotenv";
 import {
@@ -20,7 +19,6 @@ export const pubsub = new PubSub();
 // Load environment variables from .env file, where API keys and passwords are configured
 dotenv.config({ path: ".env" });
 
-export const client = new OAuth2Client(CLIENT_ID);
 // help to debug mongoose
 mongoose.set("debug", true);
 
@@ -39,16 +37,37 @@ const server = new ApolloServer({
 			return;
 		}
 
-		const token = req.headers.authorization || "";
+		const token = req.headers.authorization.split("Bearer ")[1] || "";
 		const checkToken = await userController.findOrCreateUser(token);
 		if (!checkToken.hasOwnProperty("authorized")) {
 			return { user: checkToken, authorized: true };
 		}
 		return checkToken;
 	},
-	tracing: true
+	tracing: true,
+	subscriptions: {
+		onConnect: async (connectionParams: { authToken: string }, webSocket) => {
+			const { authToken } = connectionParams;
+
+			if (authToken) {
+				const token = authToken.split("Bearer ")[1] || "";
+				try {
+					const checkToken = await userController.findOrCreateUser(token);
+					if (!checkToken.hasOwnProperty("authorized")) {
+						return { user: checkToken, authorized: true };
+					}
+					return checkToken;
+				} catch (err) {
+					throw new Error("Missing auth token!");
+				}
+			} else {
+				throw new Error("Missing auth token!");
+			}
+		}
+	}
 });
 
-server.listen().then(({ url }) => {
+server.listen().then(({ url, subscriptionsUrl }) => {
 	console.log(`🚀 Server ready at ${url}`);
+	console.log(`🚀 Subscriptions ready at ${subscriptionsUrl}`);
 });

@@ -1,6 +1,5 @@
-import { client } from "../server";
-import { CLIENT_ID } from "../common/util/secrets";
 import { User } from "./user.model";
+import { admin } from "../firebase";
 
 const userController = {
 	users: (root: any, args: any) => User.find({}),
@@ -9,29 +8,27 @@ const userController = {
 		if (!token) {
 			return { authorized: false };
 		}
-		const googleUser = await userController.verifyGoogleToken(token);
-		const user = await userController.checkIfUserExists(googleUser.email);
+
+		const firebaseUser = await userController.verifyAuthToken(token);
+
+		const user = await userController.checkIfUserExists(firebaseUser.email);
 		if (user) {
 			return user;
 		} else {
-			return userController.saveUser(googleUser);
+			return userController.saveUser(firebaseUser);
 		}
 	},
 	checkIfUserExists: (email: string) => {
 		return User.findOne({ email }).exec();
 	},
-	saveUser: (gUser: any) => {
-		const { email, name, picture, given_name, family_name, locale } = gUser;
-		const user = { email, name, picture, given_name, family_name, locale };
+	saveUser: (firebaseUser: any) => {
+		const { email, name, picture: photoURL } = firebaseUser;
+		const user = { email, name, photoURL };
 		const newUser = new User(user);
 		return newUser.save();
 	},
-	verifyGoogleToken: async (token: string) => {
-		const ticket = await client.verifyIdToken({
-			idToken: token,
-			audience: CLIENT_ID
-		});
-		return ticket.getPayload();
+	verifyAuthToken: async (token: string) => {
+		return admin.auth().verifyIdToken(token);
 	}
 };
 

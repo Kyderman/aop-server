@@ -5,10 +5,7 @@ const userType = gql`
 		_id: String
 		email: String
 		name: String
-		picture: String
-		given_name: String
-		family_name: String
-		locale: String
+		photoURL: String
 	}
 `;
 
